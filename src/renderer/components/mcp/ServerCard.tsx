@@ -1,6 +1,14 @@
 import React from 'react';
 import { MCPServer, ServerStatus } from '../../types/mcp';
 
+const pulseAnimation = `
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+`;
+
 interface ServerCardProps {
   server: MCPServer;
   serverId: string;
@@ -38,6 +46,7 @@ const ServerCard: React.FC<ServerCardProps> = ({
         return {
           backgroundColor: '#f59e0b', // Amber
           color: 'white',
+          animation: 'pulse 1.2s infinite ease-in-out',
         };
       default:
         return {
@@ -62,33 +71,56 @@ const ServerCard: React.FC<ServerCardProps> = ({
   };
 
   return (
-    <div style={{ 
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0.75rem 1rem',
-      borderBottom: '1px solid #eee',
-      width: '100%'
-    }}>
-      {/* Status Badge */}
+    <>
+      <style>{pulseAnimation}</style>
+      <div style={{ 
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0.75rem 1rem',
+        borderBottom: '1px solid #eee',
+        width: '100%'
+      }}>
+      {/* Status Badge and Refresh Button */}
       <div style={{ 
         marginRight: '0.75rem',
         display: 'flex',
         alignItems: 'center',
+        gap: '0.5rem'
       }}>
         <div
-          onClick={onCheckStatus}
           style={{
             ...getStatusBadgeStyle(),
             fontSize: '0.75rem',
             padding: '0.25rem 0.5rem',
             borderRadius: '9999px',
             fontWeight: 'bold',
-            cursor: 'pointer',
+            transition: 'background-color 0.3s ease-in-out, color 0.3s ease-in-out',
           }}
-          title="Click to check status"
         >
           {getStatusText()}
         </div>
+        
+        {/* Refresh Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onCheckStatus();
+          }}
+          style={{
+            background: 'none',
+            border: '1px solid #ccc',
+            borderRadius: '3px',
+            padding: '0.15rem 0.3rem',
+            cursor: 'pointer',
+            fontSize: '0.7rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Refresh status"
+        >
+          ↻
+        </button>
       </div>
       
       {/* ID Column */}
@@ -177,6 +209,7 @@ const ServerCard: React.FC<ServerCardProps> = ({
         </button>
       </div>
     </div>
+    </>
   );
 };
 

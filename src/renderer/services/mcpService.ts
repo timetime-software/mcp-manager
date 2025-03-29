@@ -153,11 +153,27 @@ export async function setDefaultServer(serverId: string): Promise<{ success: boo
  */
 export async function pingMCPServer(serverId: string, server: MCPServer): Promise<ServerStatus> {
   try {
+    console.log(`Pinging MCP server ${serverId}...`);
+    
+    // Force the server to be treated as online for debugging
+    // Uncomment this line to force all servers to appear online
+    // return ServerStatus.ONLINE;
+    
     const response = await window.electron.ipcRenderer.invoke('ping-mcp-server', serverId, server);
     
     if (response.success) {
+      console.log(`Server ${serverId} is ONLINE on port ${response.port}`);
       return ServerStatus.ONLINE;
     } else {
+      console.log(`Server ${serverId} is OFFLINE. Reason: ${response.error || 'Connection failed'}`);
+      
+      // If the command is not available, we should still show the server
+      // This helps users who have configured servers but not installed the command yet
+      if (response.error === 'Command not available') {
+        console.log(`Command '${server.command}' not available, but showing server anyway`);
+        return ServerStatus.UNKNOWN;
+      }
+      
       return ServerStatus.OFFLINE;
     }
   } catch (error) {

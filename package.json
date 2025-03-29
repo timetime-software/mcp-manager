@@ -52,6 +52,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@types/jest": "^29.5.14",
     "@types/uuid": "^10.0.0",
@@ -102,5 +103,13 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "phantomjs-prebuilt",
+      "sharp"
+    ]
   }
 }

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ServerCard from './ServerCard';
 import ServerDialog from './ServerDialog';
 import DeleteConfirmDialog from './DeleteConfirmDialog';
 import ImportJsonDialog from './ImportJsonDialog';
+import ConfigJsonEditor from './ConfigJsonEditor';
 import * as mcpService from '../../services/mcpService';
 import { EditableMCPServer, MCPServer, MCPConfig, ServerStatus } from '../../types/mcp';
 
@@ -12,11 +13,13 @@ const ServerManager: React.FC = () => {
   const [serverStatuses, setServerStatuses] = useState<Record<string, ServerStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false);
   const [currentServerId, setCurrentServerId] = useState<string | null>(null);
   
   useEffect(() => {
@@ -34,14 +37,19 @@ const ServerManager: React.FC = () => {
       // Initialize all server statuses as unknown
       const initialStatuses: Record<string, ServerStatus> = {};
       Object.keys(config.mcpServers || {}).forEach(serverId => {
-        initialStatuses[serverId] = ServerStatus.UNKNOWN;
+        // Preserve existing status if available, otherwise set to UNKNOWN
+        initialStatuses[serverId] = serverStatuses[serverId] || ServerStatus.UNKNOWN;
       });
       setServerStatuses(initialStatuses);
       
       setIsLoading(false);
       
-      // Check server statuses in the background
-      checkAllServerStatuses();
+      // Perform a one-time health check only if it hasn't been done yet
+      if (!initialCheckDone && Object.keys(config.mcpServers || {}).length > 0) {
+        console.log('Performing initial health check...');
+        await checkAllServerStatuses();
+        setInitialCheckDone(true);
+      }
     } catch (err: any) {
       setError(err?.message || 'Error loading MCP servers');
       setIsLoading(false);
@@ -138,7 +146,16 @@ const ServerManager: React.FC = () => {
   };
   
   // Check the status of all servers
-  const checkAllServerStatuses = async () => {
+  const checkAllServerStatuses = useCallback(async () => {
+    // Prevent multiple simultaneous status checks
+    if (Object.values(serverStatuses).some(status => status === ServerStatus.CHECKING)) {
+      console.log('Status check already in progress');
+      return;
+    }
+    
+    const startTime = Date.now();
+    const minAnimationTime = 800; // ms
+    
     try {
       // Mark all servers as checking
       const checkingStatuses = { ...serverStatuses };
@@ -149,14 +166,65 @@ const ServerManager: React.FC = () => {
       
       // Ping all servers
       const statuses = await mcpService.pingAllMCPServers();
-      setServerStatuses(statuses);
+      
+      // Ensure minimum animation time
+      const updateStatuses = () => {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minAnimationTime) {
+          setTimeout(() => {
+            setServerStatuses(statuses);
+          }, minAnimationTime - elapsedTime);
+        } else {
+          setServerStatuses(statuses);
+        }
+      };
+      
+      updateStatuses();
     } catch (error) {
       console.error('Error checking server statuses:', error);
+      
+      // Ensure minimum animation time
+      const updateStatuses = () => {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minAnimationTime) {
+          setTimeout(() => {
+            // Reset statuses that are still in CHECKING state to UNKNOWN
+            setServerStatuses(prev => {
+              const updated = { ...prev };
+              Object.keys(updated).forEach(id => {
+                if (updated[id] === ServerStatus.CHECKING) {
+                  updated[id] = ServerStatus.UNKNOWN;
+                }
+              });
+              return updated;
+            });
+          }, minAnimationTime - elapsedTime);
+        } else {
+          // Reset statuses that are still in CHECKING state to UNKNOWN
+          setServerStatuses(prev => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach(id => {
+              if (updated[id] === ServerStatus.CHECKING) {
+                updated[id] = ServerStatus.UNKNOWN;
+              }
+            });
+            return updated;
+          });
+        }
+      };
+      
+      updateStatuses();
     }
-  };
+  }, [servers, serverStatuses]);
   
   // Check the status of a single server
   const checkServerStatus = async (serverId: string) => {
+    // Skip if this server is already being checked
+    if (serverStatuses[serverId] === ServerStatus.CHECKING) {
+      console.log(`Status check already in progress for ${serverId}`);
+      return;
+    }
+    
     try {
       // Mark server as checking
       setServerStatuses(prev => ({
@@ -167,17 +235,56 @@ const ServerManager: React.FC = () => {
       // Ping the server
       const status = await mcpService.pingMCPServer(serverId, servers[serverId]);
       
-      // Update the status
-      setServerStatuses(prev => ({
-        ...prev,
-        [serverId]: status,
-      }));
+      // Use a small timeout to ensure smooth animation
+      // Minimum of 800ms to ensure the checking animation is visible
+      const startTime = Date.now();
+      const minAnimationTime = 800; // ms
+      
+      const updateStatus = () => {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minAnimationTime) {
+          // Wait until minimum animation time has passed
+          setTimeout(() => {
+            setServerStatuses(prev => ({
+              ...prev,
+              [serverId]: status,
+            }));
+          }, minAnimationTime - elapsedTime);
+        } else {
+          // Update immediately if minimum time has already passed
+          setServerStatuses(prev => ({
+            ...prev,
+            [serverId]: status,
+          }));
+        }
+      };
+      
+      updateStatus();
     } catch (error) {
       console.error(`Error checking server status for ${serverId}:`, error);
-      setServerStatuses(prev => ({
-        ...prev,
-        [serverId]: ServerStatus.OFFLINE,
-      }));
+      
+      // Use a small timeout to ensure smooth animation
+      const startTime = Date.now();
+      const minAnimationTime = 800; // ms
+      
+      const updateStatus = () => {
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < minAnimationTime) {
+          setTimeout(() => {
+            setServerStatuses(prev => ({
+              ...prev,
+              [serverId]: ServerStatus.OFFLINE,
+            }));
+          }, minAnimationTime - elapsedTime);
+        } else {
+          setServerStatuses(prev => ({
+            ...prev,
+            [serverId]: ServerStatus.OFFLINE,
+          }));
+        }
+      };
+      
+      updateStatus();
     }
   };
   
@@ -214,6 +321,12 @@ const ServerManager: React.FC = () => {
             Check All Statuses
           </button>
           <button 
+            onClick={() => setIsJsonEditorOpen(true)} 
+            style={{ padding: '0.5rem 1rem', borderRadius: '4px', background: 'none', border: '1px solid #ccc' }}
+          >
+            View JSON
+          </button>
+          <button 
             onClick={() => setIsImportDialogOpen(true)} 
             style={{ padding: '0.5rem 1rem', borderRadius: '4px', background: 'none', border: '1px solid #ccc' }}
           >
@@ -235,6 +348,12 @@ const ServerManager: React.FC = () => {
             MCP servers are used to manage your cluster configuration.
           </p>
           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+            <button 
+              onClick={() => setIsJsonEditorOpen(true)}
+              style={{ padding: '0.5rem 1rem', borderRadius: '4px', background: 'none', border: '1px solid #ccc' }}
+            >
+              View JSON
+            </button>
             <button 
               onClick={() => setIsImportDialogOpen(true)}
               style={{ padding: '0.5rem 1rem', borderRadius: '4px', background: 'none', border: '1px solid #ccc' }}
@@ -261,7 +380,7 @@ const ServerManager: React.FC = () => {
             fontWeight: 'bold',
             fontSize: '0.875rem'
           }}>
-            <div style={{ width: '80px', marginRight: '0.75rem' }}>Status</div>
+            <div style={{ width: '120px', marginRight: '0.75rem' }}>Status</div>
             <div style={{ width: '15%', paddingRight: '1rem' }}>Server ID</div>
             <div style={{ width: '30%', paddingRight: '1rem' }}>Command</div>
             <div style={{ width: '15%', paddingRight: '1rem' }}>Arguments</div>
@@ -317,6 +436,14 @@ const ServerManager: React.FC = () => {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         onImport={handleImportFromJson}
+      />
+
+      <ConfigJsonEditor
+        isOpen={isJsonEditorOpen}
+        onClose={() => {
+          setIsJsonEditorOpen(false);
+          loadServers(); // Reload servers after closing the editor
+        }}
       />
     </div>
   );

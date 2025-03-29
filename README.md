@@ -37,16 +37,22 @@ If you prefer to build the application yourself:
 2. Install dependencies:
    ```bash
    npm install
+   # or if you prefer pnpm
+   pnpm install
    ```
 
 3. Build the application:
    ```bash
    npm run build
+   # or with pnpm
+   pnpm build
    ```
 
 4. Create distributables:
    ```bash
    npm run dist
+   # or with pnpm
+   pnpm dist
    ```
 
 The built application will be available in the `release` directory.
@@ -60,11 +66,15 @@ The built application will be available in the `release` directory.
    git clone https://github.com/iagolast/mcp-manager.git
    cd mcp-manager
    npm install
+   # or if you prefer pnpm
+   pnpm install
    ```
 
 2. Start the development server:
    ```bash
    npm run dev
+   # or with pnpm
+   pnpm dev
    ```
 
 This will launch both the Vite development server for the React frontend and the Electron application.
@@ -82,11 +92,15 @@ This will launch both the Vite development server for the React frontend and the
 Run the tests with:
 ```bash
 npm test
+# or with pnpm
+pnpm test
 ```
 
 For development with continuous testing:
 ```bash
 npm run test:watch
+# or with pnpm
+pnpm test:watch
 ```
 
 ## Configuration
